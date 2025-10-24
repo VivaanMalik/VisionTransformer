@@ -1,0 +1,13 @@
+/build/
+/dataset/cifar-10-batches-bin
+/dataset/cifar-100-binary
+*.bin
+*.html
+*.tar.gz
+*.txt
+*.txt~
+*.o
+*.a
+main
+main_debug
+*.vscode/
