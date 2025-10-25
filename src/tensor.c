@@ -1,5 +1,6 @@
 #include "../include/tensor.h"
 #include <stdlib.h>
+#include <time.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -112,6 +113,19 @@ void addBiasToTensor(Tensor *A, float *Bias) {
             A->data[i*A->shape[1]+j] += Bias[j];
         }
     }
+}
+
+void randomWeights(Tensor *A) {
+    srand(time(0));
+
+    int size = A->shape[0] * A->shape[1];
+    
+    A->data = malloc(sizeof(float) * size);
+
+    float limit = sqrtf(6.0f / (A->shape[0] + A->shape[1]));
+    for (int i = 0; i < A->shape[0] * A->shape[1]; i++)
+        A->data[i] = ((float)rand() / RAND_MAX) * 2 * limit - limit;
+
 }
 
 void copyTensor(Tensor *A, Tensor *Result) {

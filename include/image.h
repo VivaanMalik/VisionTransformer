@@ -3,11 +3,11 @@
 
 #include "tensor.h"
 
-#define DATASET_BATCH_SIZE 50000
+#define DATASET_SIZE 50000
 #define IMAGE_SIZE 32               // 32
 #define PATCH_SIZE 4                // 4
 #define NUM_PATCHES (IMAGE_SIZE/PATCH_SIZE)
 
-void LoadCIFAR10Dataset(const char *, Tensor *, char *);
+void LoadCIFAR10Dataset(const char *, Tensor *, char *, int);
 
 #endif

@@ -1,72 +1,46 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "include/ViT.h"
 
 int main() {
-    print(HELLO_WORLD);
+    for (int Batch = 0; Batch < DATASET_SIZE/DATASET_BATCH_SIZE; Batch++) {
+        Tensor Images = {0};           // Images -> Image -> 64 patches (4x4) -> 3 color channels
+        char Labels[DATASET_BATCH_SIZE];
+        LoadCIFAR10Dataset("dataset/cifar-10-batches-bin/train_all.bin", &Images, Labels, Batch);
 
-    Tensor A;
-    int shape1[2] = {2, 2};
-    A.shape=shape1;
-    float arr1[4] = {1, 2, 3, 4};
-    A.data = arr1;
-    A.ndim=2;
+        // Projection
+        Tensor ProjectionWeights = {0};
+        ProjectionWeights.ndim = 2;
+        int PWshape[2] = {PROJECTION_SIZE, 3*PATCH_SIZE*PATCH_SIZE};
+        ProjectionWeights.shape=PWshape;
+        randomWeights(&ProjectionWeights);
 
-    Tensor B;
-    int shape2[2] = {2, 2};
-    B.shape=shape2;
-    float arr2[4] = {4, 3, 2, 1};
-    B.data = arr2;
-    B.ndim=2;
+        Tensor ProjectionBiases = {0};
+        ProjectionBiases.ndim = 1;
+        int PBshape[1] = {PROJECTION_SIZE};
+        ProjectionBiases.shape=PBshape;
+        float PBdata[PROJECTION_SIZE] = {0};
+        ProjectionBiases.data = PBdata;
 
-    printTensor(&A);
-    printf("\t\tA\n\n");
-
-    printTensor(&B);
-    printf("\t\tB\n\n");
-
-    Tensor C = {0}; // make sure value hai
-    addTensor(&A, &B, &C);
-    printTensor(&C);
-    printf("\t\tC\n\n");
-    
-    // freeTensor(&C);
-    matmulTensor(&A, &B, &C);
-    printTensor(&C);
-    printf("\t\tC\n\n");
-
-    scaleTensor(&C, 0.1f);
-    printTensor(&C);
-    printf("\t\tC\n\n");
-
-    Tensor C_T = {0}; // make sure value hai
-    transposeTensor(&C, &C_T);
-    printTensor(&C_T);
-    printf("\t\tC_T\n\n");
-    freeTensor(&C_T);
-
-    softmaxTensor(&C);
-    printTensor(&C);
-    printf("\t\tC\n\n");
-    // printTensor(&C_T);           // shpuld segfault
-    // printf("\n\n");
-
-    copyTensor(&A, &C);
-    printTensor(&C);
-    printf("\t\tC\n\n");
-
-    float arr[2] = {1, -1};
-    addBiasToTensor(&C, arr);
-    printTensor(&C);
-    printf("\t\tC\n\n");
-
-    // freeTensor(&A);
-    // freeTensor(&B);
-    // freeTensor(&C);
-
-    Tensor Images;           // Images -> Image -> 64 patches (4x4) -> 3 color channels
-    char Labels[50000];
-    LoadCIFAR10Dataset("dataset/cifar-10-batches-bin/train_all.bin", &Images, Labels);
-
- 
-    printf("\n");
+        Tensor EmbeddedImages = {0};
+        EmbeddedImages.ndim = 3;
+        int EIshape[3] = {DATASET_BATCH_SIZE, NUM_PATCHES*NUM_PATCHES, PROJECTION_SIZE};
+        EmbeddedImages.shape = EIshape;
+        float *EIdata = malloc(sizeof(float) * DATASET_BATCH_SIZE*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE);
+        EmbeddedImages.data = EIdata;
+        for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
+            for (int p = 0; p < NUM_PATCHES*NUM_PATCHES; p++) {
+                for (int project = 0; project < PROJECTION_SIZE; project++) {
+                    float sum = ProjectionBiases.data[project];
+                    for (int pxl = 0; pxl < 3*PATCH_SIZE*PATCH_SIZE; pxl++) {
+                        sum+=Images.data[3*IMAGE_SIZE*IMAGE_SIZE*Image + 3*PATCH_SIZE*PATCH_SIZE*p + pxl] * ProjectionWeights.data[3*project*PATCH_SIZE*PATCH_SIZE + pxl];
+                    }
+                    EmbeddedImages.data[(NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE*Image) + (PROJECTION_SIZE*p) + project] = sum;
+                    // if ((NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE*Image) + (PROJECTION_SIZE*p) + project > 409000000)
+                    //     printf("%d ", (NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE*Image) + (PROJECTION_SIZE*p) + project);
+                }
+            }
+        }
+        freeTensor(&Images);
+    }
 }

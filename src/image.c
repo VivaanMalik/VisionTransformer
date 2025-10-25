@@ -1,11 +1,14 @@
 #include "../include/image.h"
 #include "../include/tensor.h"
+#include "../include/ViT.h"
 #include <stdlib.h>
 #include <stdio.h>
 
-void LoadCIFAR10Dataset(const char *Path, Tensor *Images, char *Labels) {
+void LoadCIFAR10Dataset(const char *Path, Tensor *Images, char *Labels, int Batch) {
     FILE *f = fopen(Path, "rb");
     if (!f) { printf("File not found\n"); return; }
+
+    fseek(f, Batch*DATASET_BATCH_SIZE*(IMAGE_SIZE*IMAGE_SIZE*3+1), SEEK_CUR);
 
     Images->ndim = 4;
     Images->shape = malloc(sizeof(int)*4);
