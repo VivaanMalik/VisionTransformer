@@ -151,6 +151,13 @@ void freeTensor(Tensor *A) {
     A->ndim = 0;
 }
 
+void freeTensorData(Tensor *A) {
+    if (A->data) free(A->data);
+    A->shape = NULL;
+    A->data = NULL;
+    A->ndim = 0;
+}
+
 void printTensor(Tensor *A) {
     for (int i = 0; i < A->shape[0]; i++) {
         for (int j = 0; j < A->shape[1]; j++) {

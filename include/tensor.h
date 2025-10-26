@@ -18,6 +18,7 @@ void randomWeights(Tensor *);
 
 void copyTensor(Tensor *, Tensor *);
 void freeTensor(Tensor *);
+void freeTensorData(Tensor *);
 void printTensor(Tensor *);
 
 
