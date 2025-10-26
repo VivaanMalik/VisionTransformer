@@ -3,7 +3,7 @@
 
 #include "tensor.h"
 
-#define DATASET_SIZE 50000
+#define DATASET_SIZE 10000          // 50000
 #define IMAGE_SIZE 32               // 32
 #define PATCH_SIZE 4                // 4
 #define NUM_PATCHES (IMAGE_SIZE/PATCH_SIZE)

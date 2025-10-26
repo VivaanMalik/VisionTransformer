@@ -8,6 +8,11 @@ int main() {
     time_t start_time = time(NULL);
     int num_b = DATASET_SIZE/DATASET_BATCH_SIZE;
     for (int Batch = 0; Batch < num_b; Batch++) {
+
+        // variables ill keep on using
+        int ImageOffset, PatchOffset, HeadOffset, ImageOffset2, HeadOffset2, QiOffset, QiOffset2, PatchOffset2;
+
+
         if ((Batch+1)%125==0 || Batch==num_b-1)
             printf("Batch: \t%d/%d\t%.2f%%\t%lds\n", Batch+1, num_b, (float)100*(Batch+1)/num_b, time(NULL)-start_time);
         Tensor Images = {0};           // Images -> 16 Image -> 64 patches (4x4) -> 3 color channels -> 16 pixels
@@ -35,7 +40,6 @@ int main() {
         float *EIdata = malloc(sizeof(float) * DATASET_BATCH_SIZE*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE);
         EmbeddedImages.data = EIdata;
 
-        int ImageOffset, PatchOffset;
         for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
             ImageOffset = (NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE*Image);
             for (int p = 0; p < NUM_PATCHES*NUM_PATCHES; p++) {
@@ -137,7 +141,6 @@ int main() {
         float *Sdata = malloc(sizeof(float) * DATASET_BATCH_SIZE * NUM_PATCHES*NUM_PATCHES *NUM_HEAD * NUM_PATCHES*NUM_PATCHES);
         Scores.data = Sdata;
 
-        int HeadOffset, ImageOffset2, HeadOffset2, QiOffset;
         for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
             ImageOffset = NUM_PATCHES*NUM_PATCHES*NUM_HEAD*HEAD_SIZE*Image;
             ImageOffset2 = NUM_PATCHES*NUM_PATCHES*NUM_HEAD*NUM_PATCHES*NUM_PATCHES*Image;
@@ -215,7 +218,6 @@ int main() {
         float *AOdata = malloc(sizeof(float) * DATASET_BATCH_SIZE*NUM_PATCHES*NUM_PATCHES*NUM_HEAD*HEAD_SIZE);
         AttentionOutput.data = AOdata;
 
-        int QiOffset2;
         for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
             ImageOffset = Image*NUM_PATCHES*NUM_PATCHES*NUM_HEAD*NUM_PATCHES*NUM_PATCHES;
             ImageOffset2 = Image*NUM_PATCHES*NUM_PATCHES*NUM_HEAD*HEAD_SIZE;
@@ -234,7 +236,68 @@ int main() {
                     }
                 }
             }
-        }        
+        }      
+        
+        // now we reproject to PROJECTION_SIZE from NUM_HEAD * HEAD_SIZE and do residual
+        Tensor AttentionProjectionWeights = {0};
+        AttentionProjectionWeights.ndim = 2;
+        int APWshape[2] = {NUM_HEAD*HEAD_SIZE, PROJECTION_SIZE};
+        AttentionProjectionWeights.shape=APWshape;
+        randomWeights(&AttentionProjectionWeights);
+
+        for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
+            ImageOffset = Image*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE;
+            ImageOffset2 = Image*NUM_PATCHES*NUM_PATCHES*NUM_HEAD*HEAD_SIZE;
+            for (int p = 0; p < NUM_PATCHES*NUM_PATCHES; p++) {
+                PatchOffset = p*PROJECTION_SIZE;
+                PatchOffset2 = p*NUM_HEAD*HEAD_SIZE;
+                for (int p2 = 0; p2 < PROJECTION_SIZE; p2++) {
+                    float sum = 0.0f;
+                    for (int pxl = 0; pxl < NUM_HEAD*HEAD_SIZE; pxl++) {
+                        sum+=AttentionProjectionWeights.data[pxl*PROJECTION_SIZE + p2] * AttentionOutput.data[ImageOffset2 + PatchOffset2 + pxl];
+                    }
+                    EmbeddedImages.data[ImageOffset + PatchOffset + p2] += sum;
+                }
+            }
+        }
+
+        // we do layernormmmmmm
+        // welford to find mean and variance
+        Tensor mean, variance;
+        mean.ndim = 2;
+        variance.ndim = 2;
+        int mshape[2] = {DATASET_BATCH_SIZE, NUM_PATCHES*NUM_PATCHES};
+        int vshape[2] = {DATASET_BATCH_SIZE, NUM_PATCHES*NUM_PATCHES};
+        mean.shape = mshape;
+        variance.shape = vshape;
+        mean.data = malloc(sizeof(float) * DATASET_BATCH_SIZE * NUM_PATCHES*NUM_PATCHES);
+        variance.data = malloc(sizeof(float) * DATASET_BATCH_SIZE * NUM_PATCHES*NUM_PATCHES);
+
+        for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
+            ImageOffset = Image*NUM_PATCHES*NUM_PATCHES;
+            ImageOffset2 = ImageOffset*PROJECTION_SIZE;
+            for (int p = 0; p < NUM_PATCHES*NUM_PATCHES; p++) {
+                PatchOffset = p*PROJECTION_SIZE;
+                mean.data[ImageOffset + p] = 0;
+                variance.data[ImageOffset + p] = 0;
+                for (int pxl = 0; pxl < PROJECTION_SIZE; pxl++) {
+                    float x = EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl];
+                    float delta = x - mean.data[ImageOffset + p];
+                    mean.data[ImageOffset + p] += delta / (pxl +1);
+                    float delta2 = x - mean.data[ImageOffset + p];
+                    variance.data[ImageOffset + p] += delta * delta2;
+                }
+                variance.data[ImageOffset + p] /= PROJECTION_SIZE;
+
+                for (int pxl = 0; pxl < PROJECTION_SIZE; pxl++) {
+                    float x = EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl];
+                    float normed = (x - mean.data[ImageOffset + p]) / sqrtf(variance.data[ImageOffset + p] + 1e-5f);
+                    EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl] = normed;
+                }
+            }
+        }
+
+
 
 
 
@@ -247,5 +310,8 @@ int main() {
         freeTensorData(&Scores);
         freeTensorData(&AttentionWeights);
         freeTensorData(&AttentionOutput);
+        freeTensorData(&AttentionProjectionWeights);
+        freeTensorData(&mean);
+        freeTensorData(&variance);
     }
 }
