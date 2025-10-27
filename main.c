@@ -2,37 +2,110 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <string.h>
 #include "include/ViT.h"
 
 int main() {
     time_t start_time = time(NULL);
     int num_b = DATASET_SIZE/DATASET_BATCH_SIZE;
+
+    // Define all the Learnable Tensors
+    Tensor ProjectionWeights = {0};
+    ProjectionWeights.ndim = 2;
+    int PWshape[2] = {PROJECTION_SIZE, 3*PATCH_SIZE*PATCH_SIZE};
+    ProjectionWeights.shape=PWshape;
+    randomWeights(&ProjectionWeights);
+
+    Tensor ProjectionBiases = {0};
+    ProjectionBiases.ndim = 1;
+    int PBshape[1] = {PROJECTION_SIZE};
+    ProjectionBiases.shape=PBshape;
+    float PBdata[PROJECTION_SIZE] = {0};
+    ProjectionBiases.data = PBdata;
+
+    Tensor PositionEncode = {0};
+    PositionEncode.ndim = 2;
+    int PEshape[2] = {NUM_PATCHES*NUM_PATCHES, PROJECTION_SIZE};
+    PositionEncode.shape = PEshape;
+    randomWeights(&PositionEncode);
+
+    Tensor Q_W = {0};
+    Q_W.ndim = 2;
+    int QWshape[2] = {PROJECTION_SIZE, NUM_HEAD*HEAD_SIZE};
+    Q_W.shape=QWshape;
+    randomWeights(&Q_W);
+
+    Tensor K_W = {0};
+    K_W.ndim = 2;
+    int KWshape[2] = {PROJECTION_SIZE, NUM_HEAD*HEAD_SIZE};
+    K_W.shape=KWshape;
+    randomWeights(&K_W);
+    
+    Tensor V_W = {0};
+    V_W.ndim = 2;
+    int VWshape[2] = {PROJECTION_SIZE, NUM_HEAD*HEAD_SIZE};
+    V_W.shape=VWshape;
+    randomWeights(&V_W);
+
+    Tensor MLPHiddenWeights;
+    MLPHiddenWeights.ndim = 2;
+    int MLPHWshape[2] = {PROJECTION_SIZE, MLP_PROJECTION_SIZE};
+    MLPHiddenWeights.shape = MLPHWshape;
+    randomWeights(&MLPHiddenWeights);
+    // MLPHiddenWeights.data = malloc(sizeof(float) * PROJECTION_SIZE * MLP_PROJECTION_SIZE);
+
+    Tensor MLPHiddenBiases;
+    MLPHiddenBiases.ndim = 1;
+    int MLPHBshape[1] = {MLP_PROJECTION_SIZE};
+    MLPHiddenBiases.shape = MLPHBshape;
+    MLPHiddenBiases.data = calloc(MLP_PROJECTION_SIZE, sizeof(float));
+    
+    Tensor MLPOutputWeights;
+    MLPOutputWeights.ndim = 2;
+    int MLPOWshape[2] = {MLP_PROJECTION_SIZE, PROJECTION_SIZE};
+    MLPOutputWeights.shape = MLPOWshape;
+    // MLPOutputWeights.data = malloc(sizeof(float) * PROJECTION_SIZE * MLP_PROJECTION_SIZE);
+    randomWeights(&MLPOutputWeights);
+
+    Tensor MLPOutputBiases;
+    MLPOutputBiases.ndim = 1;
+    int MLPOBshape[1] = {PROJECTION_SIZE};
+    MLPOutputBiases.shape = MLPOBshape;
+    MLPOutputBiases.data = calloc(PROJECTION_SIZE, sizeof(float));
+
+    Tensor AttentionProjectionWeights = {0};
+    AttentionProjectionWeights.ndim = 2;
+    int APWshape[2] = {NUM_HEAD*HEAD_SIZE, PROJECTION_SIZE};
+    AttentionProjectionWeights.shape=APWshape;
+    randomWeights(&AttentionProjectionWeights);
+
+    Tensor Gamma;
+    Gamma.ndim = 1;
+    int Gshape[1] = {PROJECTION_SIZE};
+    Gamma.shape = Gshape;
+    Gamma.data = malloc(sizeof(float) * PROJECTION_SIZE);
+    memset(Gamma.data, 1, sizeof(float) * PROJECTION_SIZE);
+
+    Tensor Beta;
+    Beta.ndim = 1;
+    int Bshape[1] = {PROJECTION_SIZE};
+    Beta.shape = Bshape;
+    Beta.data = calloc(PROJECTION_SIZE, sizeof(float));
+
     for (int Batch = 0; Batch < num_b; Batch++) {
 
         // variables ill keep on using
         int ImageOffset, PatchOffset, HeadOffset, ImageOffset2, HeadOffset2, QiOffset, QiOffset2, PatchOffset2;
 
 
-        if ((Batch+1)%125==0 || Batch==num_b-1)
+        // if ((Batch+1)%125==0 || Batch==num_b-1)
             printf("Batch: \t%d/%d\t%.2f%%\t%lds\n", Batch+1, num_b, (float)100*(Batch+1)/num_b, time(NULL)-start_time);
+
         Tensor Images = {0};           // Images -> 16 Image -> 64 patches (4x4) -> 3 color channels -> 16 pixels
         char Labels[DATASET_BATCH_SIZE];
         LoadCIFAR10Dataset("dataset/cifar-10-batches-bin/train_all.bin", &Images, Labels, Batch);
 
         // Projection
-        Tensor ProjectionWeights = {0};
-        ProjectionWeights.ndim = 2;
-        int PWshape[2] = {PROJECTION_SIZE, 3*PATCH_SIZE*PATCH_SIZE};
-        ProjectionWeights.shape=PWshape;
-        randomWeights(&ProjectionWeights);
-
-        Tensor ProjectionBiases = {0};
-        ProjectionBiases.ndim = 1;
-        int PBshape[1] = {PROJECTION_SIZE};
-        ProjectionBiases.shape=PBshape;
-        float PBdata[PROJECTION_SIZE] = {0};
-        ProjectionBiases.data = PBdata;
-
         Tensor EmbeddedImages = {0};
         EmbeddedImages.ndim = 3;
         int EIshape[3] = {DATASET_BATCH_SIZE, NUM_PATCHES*NUM_PATCHES, PROJECTION_SIZE};
@@ -58,12 +131,6 @@ int main() {
         freeTensor(&Images);
 
         // Positional Encoding, we add patch size tensor to each patch
-        Tensor PositionEncode = {0};
-        PositionEncode.ndim = 2;
-        int PEshape[2] = {NUM_PATCHES*NUM_PATCHES, PROJECTION_SIZE};
-        PositionEncode.shape = PEshape;
-        randomWeights(&PositionEncode);
-
         for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
             for (int i = 0; i < NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE; i++) {
                 EmbeddedImages.data[Image*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE + i] += PositionEncode.data[i];
@@ -71,24 +138,6 @@ int main() {
         }
 
         // Multihead Key Value Queries
-        Tensor Q_W = {0};
-        Q_W.ndim = 2;
-        int QWshape[2] = {PROJECTION_SIZE, NUM_HEAD*HEAD_SIZE};
-        Q_W.shape=QWshape;
-        randomWeights(&Q_W);
-
-        Tensor K_W = {0};
-        K_W.ndim = 2;
-        int KWshape[2] = {PROJECTION_SIZE, NUM_HEAD*HEAD_SIZE};
-        K_W.shape=KWshape;
-        randomWeights(&K_W);
-        
-        Tensor V_W = {0};
-        V_W.ndim = 2;
-        int VWshape[2] = {PROJECTION_SIZE, NUM_HEAD*HEAD_SIZE};
-        V_W.shape=VWshape;
-        randomWeights(&V_W);
-
         Tensor Q={0}, K={0}, V={0};
         Q.ndim = 4;
         int Qshape[4] = {DATASET_BATCH_SIZE, NUM_PATCHES*NUM_PATCHES, NUM_HEAD, HEAD_SIZE};
@@ -239,12 +288,6 @@ int main() {
         }      
         
         // now we reproject to PROJECTION_SIZE from NUM_HEAD * HEAD_SIZE and do residual
-        Tensor AttentionProjectionWeights = {0};
-        AttentionProjectionWeights.ndim = 2;
-        int APWshape[2] = {NUM_HEAD*HEAD_SIZE, PROJECTION_SIZE};
-        AttentionProjectionWeights.shape=APWshape;
-        randomWeights(&AttentionProjectionWeights);
-
         for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
             ImageOffset = Image*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE;
             ImageOffset2 = Image*NUM_PATCHES*NUM_PATCHES*NUM_HEAD*HEAD_SIZE;
@@ -292,26 +335,110 @@ int main() {
                 for (int pxl = 0; pxl < PROJECTION_SIZE; pxl++) {
                     float x = EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl];
                     float normed = (x - mean.data[ImageOffset + p]) / sqrtf(variance.data[ImageOffset + p] + 1e-5f);
-                    EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl] = normed;
+                    EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl] = normed * Gamma.data[pxl] + Beta.data[pxl];
+                }
+            }
+        }
+
+        Tensor MLPHidden;
+        MLPHidden.ndim = 3;
+        int MLPHshape[3] = {DATASET_BATCH_SIZE, NUM_PATCHES*NUM_PATCHES, MLP_PROJECTION_SIZE};
+        MLPHidden.shape = MLPHshape;
+        MLPHidden.data = malloc(sizeof(float) * DATASET_BATCH_SIZE*NUM_PATCHES*NUM_PATCHES*MLP_PROJECTION_SIZE);
+
+        Tensor MLPOutput;
+        MLPOutput.ndim = 3;
+        int MLPOshape[3] = {DATASET_BATCH_SIZE, NUM_PATCHES*NUM_PATCHES, PROJECTION_SIZE};
+        MLPOutput.shape = MLPOshape;
+        MLPOutput.data = malloc(sizeof(float) * DATASET_BATCH_SIZE*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE);
+        
+        for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
+            ImageOffset = Image*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE;
+            ImageOffset2 = Image*NUM_PATCHES*NUM_PATCHES*MLP_PROJECTION_SIZE;
+            for (int p = 0; p < NUM_PATCHES*NUM_PATCHES; p++) {
+                PatchOffset = p*PROJECTION_SIZE;
+                PatchOffset2 = p*MLP_PROJECTION_SIZE;
+                for (int p2 = 0; p2 < MLP_PROJECTION_SIZE; p2++) {
+                    float sum = 0;
+                    for (int pxl = 0; pxl < PROJECTION_SIZE; pxl++) {
+                        sum+=MLPHiddenWeights.data[pxl*MLP_PROJECTION_SIZE + p2] * EmbeddedImages.data[ImageOffset + PatchOffset + pxl];
+                    }
+                    MLPHidden.data[ImageOffset2 + PatchOffset2 + p2] = sum + MLPHiddenBiases.data[p2];
+
+                    // GELU approximation using tanh
+                    float x = MLPHidden.data[ImageOffset2 + PatchOffset2 + p2];
+                    MLPHidden.data[ImageOffset2 + PatchOffset2 + p2] = 0.5f * x * (1.0f + tanhf(0.79788456f * (x + 0.044715f * x * x * x)));
                 }
             }
         }
 
 
 
+        for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
+            ImageOffset = Image*NUM_PATCHES*NUM_PATCHES*PROJECTION_SIZE;
+            ImageOffset2 = Image*NUM_PATCHES*NUM_PATCHES*MLP_PROJECTION_SIZE;
+            for (int p = 0; p < NUM_PATCHES*NUM_PATCHES; p++) {
+                PatchOffset = p*PROJECTION_SIZE;
+                PatchOffset2 = p*MLP_PROJECTION_SIZE;
+                for (int pxl = 0; pxl < PROJECTION_SIZE; pxl++) {
+                    float sum = 0;
+                    for (int p2 = 0; p2 < MLP_PROJECTION_SIZE; p2++) {
+                        sum+=MLPOutputWeights.data[p2*PROJECTION_SIZE + pxl] * MLPHidden.data[ImageOffset2 + PatchOffset2 + p2];
+                    }
+                    MLPOutput.data[ImageOffset + PatchOffset + pxl] = sum + MLPOutputBiases.data[pxl];
+                    EmbeddedImages.data[ImageOffset + PatchOffset + pxl] += MLPOutput.data[ImageOffset + PatchOffset + pxl];
+                }
+            }
+        }
 
+        for (int Image = 0; Image < DATASET_BATCH_SIZE; Image++) {
+            ImageOffset = Image*NUM_PATCHES*NUM_PATCHES;
+            ImageOffset2 = ImageOffset*PROJECTION_SIZE;
+            for (int p = 0; p < NUM_PATCHES*NUM_PATCHES; p++) {
+                PatchOffset = p*PROJECTION_SIZE;
+                mean.data[ImageOffset + p] = 0;
+                variance.data[ImageOffset + p] = 0;
+                for (int pxl = 0; pxl < PROJECTION_SIZE; pxl++) {
+                    float x = EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl];
+                    float delta = x - mean.data[ImageOffset + p];
+                    mean.data[ImageOffset + p] += delta / (pxl +1);
+                    float delta2 = x - mean.data[ImageOffset + p];
+                    variance.data[ImageOffset + p] += delta * delta2;
+                }
+                variance.data[ImageOffset + p] /= PROJECTION_SIZE;
 
+                for (int pxl = 0; pxl < PROJECTION_SIZE; pxl++) {
+                    float x = EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl];
+                    float normed = (x - mean.data[ImageOffset + p]) / sqrtf(variance.data[ImageOffset + p] + 1e-5f);
+                    EmbeddedImages.data[ImageOffset2 + PatchOffset + pxl] = normed * Gamma.data[pxl] + Beta.data[pxl];
+                }
+            }
+        }
 
         // free shit cuz otherwise memleak
         freeTensorData(&EmbeddedImages);
+        freeTensorData(&AttentionOutput);
+        freeTensorData(&mean);
+        freeTensorData(&variance);
+        freeTensorData(&MLPHidden);
+        freeTensorData(&MLPOutput);
+        freeTensorData(&Scores);
+        freeTensorData(&AttentionWeights);
         freeTensorData(&Q);
         freeTensorData(&K);
         freeTensorData(&V);
-        freeTensorData(&Scores);
-        freeTensorData(&AttentionWeights);
-        freeTensorData(&AttentionOutput);
-        freeTensorData(&AttentionProjectionWeights);
-        freeTensorData(&mean);
-        freeTensorData(&variance);
     }
+    freeTensorData(&Gamma);
+    freeTensorData(&Beta);
+    freeTensorData(&ProjectionWeights);
+    freeTensorData(&ProjectionWeights);
+    freeTensorData(&PositionEncode);
+    freeTensorData(&AttentionProjectionWeights);
+    freeTensorData(&MLPHiddenWeights);
+    freeTensorData(&MLPHiddenBiases);
+    freeTensorData(&MLPOutputWeights);
+    freeTensorData(&MLPOutputBiases);
+    freeTensorData(&Q_W);
+    freeTensorData(&K_W);
+    freeTensorData(&V_W);
 }
