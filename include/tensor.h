@@ -20,6 +20,7 @@ void copyTensor(Tensor *, Tensor *);
 void freeTensor(Tensor *);
 void freeTensorData(Tensor *);
 void printTensor(Tensor *);
+void project_last_axis(const Tensor * restrict A, const Tensor * restrict W, const Tensor * restrict Bias, Tensor * Out);
 
 
 #endif

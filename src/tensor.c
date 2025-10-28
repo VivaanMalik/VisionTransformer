@@ -1,5 +1,6 @@
 #include "../include/tensor.h"
 #include <stdlib.h>
+#include <immintrin.h>
 #include <time.h>
 #include <math.h>
 #include <stdio.h>
@@ -165,4 +166,69 @@ void printTensor(Tensor *A) {
         }
         printf("\n");
     }
+}
+
+
+
+// speed
+
+// we maek highly optimized matrix multiplication
+// we use l1 cache :D
+
+// const -> they dont point to same memory
+// restrict -> arrays never overlap
+// might make compiler optimize better
+
+static inline int prod(const int *shape, int start, int end) {
+    int p = 1;
+    for (int i = start; i < end; i++)
+        p *= shape[i];
+    return p;
+}
+
+void project_last_axis(const Tensor * restrict A, const Tensor * restrict W, const Tensor * restrict Bias, Tensor * Out) {
+    int DimensionOld = A->shape[A->ndim-1];
+    int DimensionNew = W->shape[1];
+    int B = prod(A->shape, 0, A->ndim-1); // this is the amnt of elements to skip for last axis
+
+    // faster access
+    const float * restrict a = A->data;
+    const float * restrict w = W->data;
+    const float * restrict b = (Bias && Bias->data) ? Bias->data : NULL;
+    float * restrict o = Out->data;
+
+    // deos parallel
+    #pragma omp parallel for schedule(static)
+
+    // =========================================== ADJUST ===========================================
+    // batch skips all the other bs
+    for (int batch = 0; batch < B; batch++) {
+        const float *a_row = &a[batch * DimensionOld];
+        float *o_row = &o[batch * DimensionNew];
+
+        for (int j = 0; j < DimensionNew; j++) {
+            // __m256 is a 256 bit register
+            __m256 acc = _mm256_setzero_ps();
+            float sum = b ? b[j] : 0.0f;
+            int k = 0;
+
+            // Vectorized inner product
+            for (; k + 8 <= DimensionOld; k += 8) {
+                __m256 a_vec = _mm256_loadu_ps(&a_row[k]);
+                __m256 w_vec = _mm256_loadu_ps(&w[k * DimensionNew + j]);
+                acc = _mm256_fmadd_ps(a_vec, w_vec, acc);
+            }
+
+            // Reduce SIMD accumulator
+            float acc_buf[8];
+            _mm256_storeu_ps(acc_buf, acc);
+            for (int t = 0; t < 8; t++) sum += acc_buf[t];
+
+            // Handle leftovers
+            for (; k < DimensionOld; k++) sum += a_row[k] * w[k * DimensionNew + j];
+
+            o_row[j] = sum;
+        }
+    } 
+    // =========================================== ADJUST ===========================================   
 }

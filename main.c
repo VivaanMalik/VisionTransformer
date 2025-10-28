@@ -12,16 +12,18 @@ int main() {
     // Define all the Learnable Tensors
     Tensor ProjectionWeights = {0};
     ProjectionWeights.ndim = 2;
-    int PWshape[2] = {PROJECTION_SIZE, 3*PATCH_SIZE*PATCH_SIZE};
-    ProjectionWeights.shape=PWshape;
+    ProjectionWeights.shape = malloc(2 * sizeof(int));
+    ProjectionWeights.shape[0] = PROJECTION_SIZE;                // output dim
+    ProjectionWeights.shape[1] = 3*PATCH_SIZE*PATCH_SIZE;        // input dim
+    ProjectionWeights.data = malloc(sizeof(float) * ProjectionWeights.shape[0] * ProjectionWeights.shape[1]);
     randomWeights(&ProjectionWeights);
 
     Tensor ProjectionBiases = {0};
     ProjectionBiases.ndim = 1;
-    int PBshape[1] = {PROJECTION_SIZE};
-    ProjectionBiases.shape=PBshape;
-    float PBdata[PROJECTION_SIZE] = {0};
-    ProjectionBiases.data = PBdata;
+    ProjectionBiases.shape = malloc(sizeof(int));
+    ProjectionBiases.shape[0] = PROJECTION_SIZE;
+    ProjectionBiases.data = calloc(PROJECTION_SIZE, sizeof(float)); // zeros
+
 
     Tensor PositionEncode = {0};
     PositionEncode.ndim = 2;
@@ -93,7 +95,6 @@ int main() {
     Beta.data = calloc(PROJECTION_SIZE, sizeof(float));
 
     for (int Batch = 0; Batch < num_b; Batch++) {
-
         // variables ill keep on using
         int ImageOffset, PatchOffset, HeadOffset, ImageOffset2, HeadOffset2, QiOffset, QiOffset2, PatchOffset2;
 
@@ -128,6 +129,7 @@ int main() {
                 }
             }
         }
+        // project_last_axis(&Images, &ProjectionWeights, &ProjectionBiases, &EmbeddedImages);
         freeTensor(&Images);
 
         // Positional Encoding, we add patch size tensor to each patch
@@ -428,6 +430,7 @@ int main() {
         freeTensorData(&K);
         freeTensorData(&V);
     }
+    
     freeTensorData(&Gamma);
     freeTensorData(&Beta);
     freeTensorData(&ProjectionWeights);

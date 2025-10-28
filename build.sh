@@ -18,7 +18,7 @@ count=0
 for src_file in $SRC_DIR/*.c; do
     obj_file="$BUILD_DIR/$(basename ${src_file%.c}.o)"
     echo "    $((++count)) Compiling $src_file -> $obj_file"
-    $CC $CFLAGS -c "$src_file" -o "$obj_file"
+    $CC $CFLAGS -c "$src_file" -o "$obj_file" -mavx2 -mfma -lm -O3 -march=native -fopenmp
     LIB_OBJS+=("$obj_file")
 
 done
@@ -28,10 +28,10 @@ ar rcs "$BUILD_DIR/lib$LIB_NAME.a" "${LIB_OBJS[@]}"
 
 echo "=== Compiling main program ==="
 MAIN_OBJ="$BUILD_DIR/main.o"
-$CC $CFLAGS -c "$MAIN_FILE" -o "$MAIN_OBJ"
+$CC $CFLAGS -c "$MAIN_FILE" -o "$MAIN_OBJ" -mavx2 -mfma -lm -O3 -march=native -fopenmp
 
 echo "=== Linking executable ==="
-$CC "$MAIN_OBJ" -L$BUILD_DIR -l$LIB_NAME -o main -lm
-$CC "$MAIN_OBJ" -L$BUILD_DIR -l$LIB_NAME -o main_debug -lm
+$CC "$MAIN_OBJ" -L$BUILD_DIR -l$LIB_NAME -mavx2 -mfma -o main -lm -O3 -march=native -fopenmp
+# $CC "$MAIN_OBJ" -L$BUILD_DIR -l$LIB_NAME -o main_debug -lm
 
 echo "Build complete! Executable: main"
