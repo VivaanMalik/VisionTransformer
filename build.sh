@@ -16,11 +16,12 @@ LIB_OBJS=()
 
 count=0
 for src_file in $SRC_DIR/*.c; do
-    obj_file="$BUILD_DIR/$(basename ${src_file%.c}.o)"
-    echo "    $((++count)) Compiling $src_file -> $obj_file"
-    $CC $CFLAGS -c "$src_file" -o "$obj_file" -mavx2 -mfma -lm -O3 -march=native -fopenmp
-    LIB_OBJS+=("$obj_file")
-
+    if [ "$src_file" -nt "main" ]; then
+        obj_file="$BUILD_DIR/$(basename ${src_file%.c}.o)"
+        echo "    $((++count)) Compiling $src_file -> $obj_file"
+        $CC $CFLAGS -c "$src_file" -o "$obj_file" -mavx2 -mfma -lm -O3 -march=native -fopenmp
+        LIB_OBJS+=("$obj_file")
+    fi
 done
 
 echo "    Creating static library lib$LIB_NAME.a"
