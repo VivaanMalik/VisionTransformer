@@ -70,10 +70,10 @@ Tensor4 ResizeTo224(Tensor4 input) {
     return output;
 }
 
-Tensor4 MakePatches(Tensor4 input) {
+Tensor3 MakePatches(Tensor4 input) {
 
-    int NumPatches = NUM_PATCHES * NUM_PATCHES;
-    Tensor4 output = alloc_tensor4(DATASET_BATCH_SIZE, NumPatches, 3, PATCH_SIZE*PATCH_SIZE);
+    int NumPatches = NUM_TOKENS * NUM_TOKENS;
+    Tensor3 output = alloc_tensor3(DATASET_BATCH_SIZE, NumPatches, 3*PATCH_SIZE*PATCH_SIZE);
 
     for (int b = 0; b < DATASET_BATCH_SIZE; b++) {
         int p = 0;
@@ -85,7 +85,7 @@ Tensor4 MakePatches(Tensor4 input) {
                         for (int dx = 0; dx < PATCH_SIZE; dx++) {
 
                             int flat = dy * PATCH_SIZE + dx;
-                            T4(output, b, p, c, flat) = T4(input, b, c, py + dy, px + dx);
+                            T3(output, b, p, c*PATCH_SIZE*PATCH_SIZE + flat) = T4(input, b, c, py + dy, px + dx);
                         }
                     }
                 }

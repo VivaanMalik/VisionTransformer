@@ -76,3 +76,19 @@ void softmax_scores(Tensor4 Scores) {
                     T4(Scores,b,h,i,j) /= sum;
             }
 }
+
+Tensor4 av_dot(Tensor4 Scores, Tensor4 V) {
+    int B=Scores.B, H=Scores.H, X=Scores.X, Y=V.Y;
+    Tensor4 Out = alloc_tensor4(B,H,X,Y);
+
+    for(int b=0; b<B; b++)
+        for(int h=0; h<H; h++)
+            for(int i=0; i<X; i++)
+                for(int y=0; y<Y; y++){
+                    float sum = 0.0f;
+                    for(int j=0; j<X; j++)
+                        sum += T4(Scores,b,h,i,j) * T4(V,b,h,j,y);
+                    T4(Out,b,h,i,y) = sum;
+                }
+    return Out;
+}
