@@ -1,5 +1,6 @@
 #include "../include/funcs.h"
 #include <math.h>
+#include <stdio.h>
 
 Tensor4 split_heads(Tensor3 in, int H) {
     int B = in.B, X = in.X, D = in.D;
