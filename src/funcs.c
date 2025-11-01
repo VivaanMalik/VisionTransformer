@@ -1,5 +1,6 @@
 #include "../include/funcs.h"
 #include <math.h>
+#include <stdio.h>
 
 Tensor4 split_heads(Tensor3 in, int H) {
     int B = in.B, X = in.X, D = in.D;
@@ -91,4 +92,34 @@ Tensor4 av_dot(Tensor4 Scores, Tensor4 V) {
                     T4(Out,b,h,i,y) = sum;
                 }
     return Out;
+}
+
+// Compute row-wise stable softmax on Matrix input, store in output
+void softmax_matrix(Matrix input, Matrix output) {
+    if (input.rows != output.rows || input.cols != output.cols) {
+        fprintf(stderr, "Error: softmax_matrix() dimension mismatch\n");
+        return;
+    }
+
+    for (int r = 0; r < input.rows; r++) {
+        // Step 1: find max in this row
+        float max_val = -INFINITY;
+        for (int c = 0; c < input.cols; c++) {
+            if (M(input, r, c) > max_val)
+                max_val = M(input, r, c);
+        }
+
+        // Step 2: compute exponentials of (x - max)
+        float sum_exp = 0.0f;
+        for (int c = 0; c < input.cols; c++) {
+            float e = expf(M(input, r, c) - max_val);
+            M(output, r, c) = e;
+            sum_exp += e;
+        }
+
+        // Step 3: normalize by sum of exps
+        for (int c = 0; c < input.cols; c++) {
+            M(output, r, c) /= sum_exp;
+        }
+    }
 }
